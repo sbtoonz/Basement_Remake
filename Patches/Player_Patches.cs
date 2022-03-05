@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
+
 using HarmonyLib;
 using UnityEngine;
 
@@ -30,62 +32,42 @@ namespace Basements.Patches
             }
 
         }
-        [HarmonyPatch(typeof(Player), "UpdatePlacementGhost")]
-        [HarmonyTranspiler]
-        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            var codes = new List<CodeInstruction>(instructions);
 
-            /*
-            158 ldfld System.Boolean m_groundPiece
-            159 brfalse System.Reflection.Emit.Label
-            160 ldloc.s Heightmap (5)
-            161 ldnull
-            162 call Boolean op_Equality(UnityEngine.Object, UnityEngine.Object)
-            163 brfalse System.Reflection.Emit.Label
-            164 ldarg.0
-            165 ldfld UnityEngine.GameObject m_placementGhost
-            166 ldc.i4.0
-            167 callvirt Void SetActive(Boolean)
-            168 ldarg.0
-            169 ldc.i4.1
-            170 stfld Player+PlacementStatus m_placementStatus
-            171 ret
-            172 ldloc.1
-            173 ldfld System.Boolean m_groundOnly
-            174 brfalse System.Reflection.Emit.Label
-            175 ldloc.s Heightmap (5)
-            176 ldnull
-            177 call Boolean op_Equality(UnityEngine.Object, UnityEngine.Object)
-            178 brfalse System.Reflection.Emit.Label
-            */
-            /* caves update
-            [162] = {CodeInstruction} ldloc.s 6 (UnityEngine.Collider)
-            [163] = {CodeInstruction} ldnull NULL
-            [164] = {CodeInstruction} call static bool UnityEngine.Object::op_Inequality(UnityEngine.Object x, UnityEngine.Object y)
-            [165] = {CodeInstruction} brfalse Label24
-            [166] = {CodeInstruction} ldarg.0 NULL
-            [167] = {CodeInstruction} ldc.i4.1 NULL
-            [168] = {CodeInstruction} stfld Player+PlacementStatus Player::m_placementStatus
-            [169] = {CodeInstruction} ldloc.1 NULL [Label23, Label24]
-            [170] = {CodeInstruction} ldfld bool Piece::m_groundPiece
-            [171] = {CodeInstruction} brfalse Label25
-            [172] = {CodeInstruction} ldloc.s 5 (Heightmap)
-            [173] = {CodeInstruction} ldnull NULL
-            [174] = {CodeInstruction} call static bool UnityEngine.Object::op_Equality(UnityEngine.Object x, UnityEngine.Object y)
-             */
-            //codes[3] = CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[58] = CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[100] = CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[112] = CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[152] = CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            codes[164] = CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[174]= CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            codes[189]= CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[199]= CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[393]= CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            //codes[520]= CodeInstruction.Call(typeof(Player_Patches), "OverrideNullEqualityInBasement");
-            return codes.AsEnumerable();
+        [HarmonyPatch(typeof(Player), nameof(Player.UpdatePlacementGhost))]
+        [HarmonyTranspiler]
+        static IEnumerable<CodeInstruction> UpdatePlacementGhostTranspiler(IEnumerable<CodeInstruction> instructions) {
+          return new CodeMatcher(instructions)
+              .MatchForward(
+                  useEnd: false,
+                  new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(Piece), nameof(Piece.m_groundPiece))),
+                  new CodeMatch(OpCodes.Brfalse),
+                  new CodeMatch(OpCodes.Ldloc_S),
+                  new CodeMatch(OpCodes.Ldnull),
+                  new CodeMatch(
+                      OpCodes.Call,
+                      AccessTools.Method(
+                          typeof(UnityEngine.Object), "op_Equality",
+                          new Type[] { typeof(UnityEngine.Object), typeof(UnityEngine.Object) })))
+              .Advance(offset: 4)
+              .SetInstructionAndAdvance(
+                  Transpilers.EmitDelegate<Func<UnityEngine.Object, UnityEngine.Object, bool>>(
+                      OverrideNullEqualityInBasement))
+              .MatchForward(
+                  useEnd: false,
+                  new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(Piece), nameof(Piece.m_groundOnly))),
+                  new CodeMatch(OpCodes.Brfalse),
+                  new CodeMatch(OpCodes.Ldloc_S),
+                  new CodeMatch(OpCodes.Ldnull),
+                  new CodeMatch(
+                      OpCodes.Call,
+                      AccessTools.Method(
+                          typeof(UnityEngine.Object), "op_Equality",
+                          new Type[] { typeof(UnityEngine.Object), typeof(UnityEngine.Object) })))
+              .Advance(offset: 4)
+              .SetInstructionAndAdvance(
+                  Transpilers.EmitDelegate<Func<UnityEngine.Object, UnityEngine.Object, bool>>(
+                      OverrideNullEqualityInBasement))
+              .InstructionEnumeration();
         }
 
         static bool OverrideNullEqualityInBasement(UnityEngine.Object a, UnityEngine.Object b)
