@@ -48,10 +48,8 @@ namespace Basements.Patches
                       AccessTools.Method(
                           typeof(UnityEngine.Object), "op_Equality",
                           new Type[] { typeof(UnityEngine.Object), typeof(UnityEngine.Object) })))
-              .Advance(offset: 4)
-              .SetInstructionAndAdvance(
-                  Transpilers.EmitDelegate<Func<UnityEngine.Object, UnityEngine.Object, bool>>(
-                      OverrideNullEqualityInBasement))
+              .Advance(offset: 5)
+              .InsertAndAdvance(Transpilers.EmitDelegate<Func<bool, bool>>(HeightmapIsNullBasemementDelegate))
               .MatchForward(
                   useEnd: false,
                   new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(Piece), nameof(Piece.m_groundOnly))),
@@ -63,24 +61,17 @@ namespace Basements.Patches
                       AccessTools.Method(
                           typeof(UnityEngine.Object), "op_Equality",
                           new Type[] { typeof(UnityEngine.Object), typeof(UnityEngine.Object) })))
-              .Advance(offset: 4)
-              .SetInstructionAndAdvance(
-                  Transpilers.EmitDelegate<Func<UnityEngine.Object, UnityEngine.Object, bool>>(
-                      OverrideNullEqualityInBasement))
+              .Advance(offset: 5)
+              .InsertAndAdvance(Transpilers.EmitDelegate<Func<bool, bool>>(HeightmapIsNullBasemementDelegate))
               .InstructionEnumeration();
         }
 
-        static bool OverrideNullEqualityInBasement(UnityEngine.Object a, UnityEngine.Object b)
-        {
-            if (EnvMan.instance.GetCurrentEnvironment().m_name == "Basement")
-            {
-                return false;
-            }
-            if (a == null && b == null)
-            {
-                return false;
-            }
-            return a == b;
+        static bool HeightmapIsNullBasemementDelegate(bool isEqual) {
+          if (EnvMan.m_instance.GetCurrentEnvironment().m_name == "Basement") {
+            return false;
+          }
+
+          return isEqual;
         }
     }
 }
